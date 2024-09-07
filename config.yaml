@@ -1,0 +1,16 @@
+shifts:
+ channel: # Channel ID
+ permissions: [] # Role IDs
+ online: # Online Role ID
+ break: # Break Role ID
+ manager: [] # Manager Ids
+ 
+
+punishments:
+ channel: # Channel ID
+ types: ['Warning', 'Kick', 'Ban']
+ permissions: [] # Role Ids
+ 
+ 
+
+

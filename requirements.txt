@@ -1,0 +1,4 @@
+motor
+roblox
+discord.py
+pyyaml
