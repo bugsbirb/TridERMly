@@ -25,7 +25,7 @@ shifts:
  permissions: [] # Role IDs
  online: # Online Role ID
  break: # Break Role ID
- manager: [] # Manager Ids
+ manager: [] # Manager Role Ids
  
 
 punishments:
