@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from roblox import Client
+from roblox import Client, UserNotFound
 import os
 from Utils.config import config
 from bson import ObjectId
@@ -36,7 +36,7 @@ class on_moderate(commands.Cog):
             return
         try:
             user = await Roblox.get_user_by_username(moderation.get("username"))
-        except:
+        except UserNotFound:
             return
         if not user:
             return

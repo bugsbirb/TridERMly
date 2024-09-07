@@ -354,7 +354,7 @@ class ShiftManage(discord.ui.View):
             if Online:
                 if not Online in author.roles:
                     await author.add_roles(Online)
-        except:
+        except discord.Forbidden:
             pass
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -412,7 +412,7 @@ class ShiftManage(discord.ui.View):
                 if Break and Online:
                     await self.author.add_roles(Break)
                     await self.author.remove_roles(Online)
-            except:
+            except discord.Forbidden:
                 pass
             WorkedTime = CurrentTime - ShiftResult.get("start")
             TotalDuration = ShiftResult.get("duration", 0) + WorkedTime
@@ -501,7 +501,7 @@ class ShiftManage(discord.ui.View):
                     await self.author.remove_roles(Online)
                 if Break in self.author.roles:
                     await self.author.remove_roles(Break)
-        except:
+        except discord.Forbidden:
             pass
         await interaction.response.edit_message(embed=embed, view=self)
         interaction.client.dispatch("shift_end", ShiftResult.get("_id"))
