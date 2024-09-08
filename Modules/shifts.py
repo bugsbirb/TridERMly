@@ -190,7 +190,7 @@ class Shifts(commands.Cog):
             view.Break.disabled = True
             view.end.disabled = True
 
-        await ctx.send(embed=embed, view=view)
+        await ctx.send(embed=embed, view=view, ephemeral=True)
 
     @shift.command(name="active")
     async def active(self, ctx: commands.Context):
