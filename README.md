@@ -1,4 +1,4 @@
-[![CodeFactor](https://www.codefactor.io/repository/github/bugsbirb/TridERMly/badge)](https://www.codefactor.io/repository/github//bugsbirb/TridERMly)
+[![CodeFactor](https://www.codefactor.io/repository/github/bugsbirb/TridERMly/badge)](https://www.codefactor.io/repository/github/bugsbirb/TridERMly)
 # 🤯 TridERMly
 > I got bored so I decided yk what I wanna try and create a shift/moderation bot and upload it to github.
 > One of those roblox moderation bots.
