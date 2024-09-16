@@ -2,6 +2,7 @@
 # 🤯 TridERMly
 > It's a roblox moderation bot that I decided to upload and open source. You can use the code to learn off or if you want to you can actually use it in a server.
 > You can contribute to this project if you'd like by opening a pull request; the code has to be quality tho.
+> Don't judge the code no one is perfect.
 
 ### .env
 > Make sure to actually remove the comment and rename template.env to .env so it actually works.
