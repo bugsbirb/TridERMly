@@ -2,3 +2,4 @@ motor
 roblox
 discord.py
 pyyaml
+python-dotenv
