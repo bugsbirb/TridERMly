@@ -30,6 +30,8 @@ class client(commands.Bot):
             "Events.on_shift_break",
             "Events.on_shift_resume",
             "Modules.shifts",
+            "Modules.absenses",
+            "Events.on_loa_end"
         ]
 
     async def load_jishaku(self):

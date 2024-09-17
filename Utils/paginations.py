@@ -1,178 +1,138 @@
+from __future__ import annotations
+
 import discord
-from Utils.Roblox import RobloxThumbnail
-
-class ActivePagination(discord.ui.View):
-    def __init__(self, author: discord.Member, ActiveStaff):
-        super().__init__()
-        self.page = 1
-        self.author = author
-        self.TotalPages = (len(ActiveStaff) + 29) // 30
-        self.ActiveStaff = ActiveStaff
-
-    @discord.ui.button(label="<", style=discord.ButtonStyle.blurple, disabled=True)
-    async def previous(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        if self.page > 1:
-            self.page -= 1
-            self.next.disabled = False
-            button.disabled = self.page == 1
-            await self.UpdateActive(interaction)
-
-    @discord.ui.button(label=">", style=discord.ButtonStyle.blurple, disabled=True)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < self.TotalPages:
-            self.page += 1
-            self.previous.disabled = False
-            button.disabled = self.page == self.TotalPages
-            await self.UpdateActive(interaction)
-
-    async def UpdateActive(self, interaction: discord.Interaction):
-        Start = (self.page - 1) * 30
-        End = Start + 30
-
-        StaffMembers = list(self.ActiveStaff.keys())[Start:End]
-
-        if StaffMembers:
-            description = ""
-            for i, MemberID in enumerate(StaffMembers, start=Start + 1)[:30]:
-                ShiftResult = self.ActiveStaff.get(MemberID)
-                if ShiftResult:
-                    description += (
-                        f"> **<@{MemberID}>** • <t:{int(ShiftResult.get('start'))}:R>\n"
-                    )
-
-            self.TotalPages = (len(self.ActiveStaff) + 29) // 30
-        else:
-            description = "No active shifts to display."
-
-        self.next.disabled = self.page >= self.TotalPages
-        self.previous.disabled = self.page <= 1
-        embed = discord.Embed(
-            title="Active Shifts",
-            color=discord.Color.dark_embed(),
-            description=description,
-        )
-        embed.set_thumbnail(url=interaction.guild.icon)
-        embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon)
-
-        await interaction.response.edit_message(embed=embed, view=self)
+from discord.ext import commands
 
 
-class LeaderboardPagination(discord.ui.View):
+class Simple(discord.ui.View):
+
     def __init__(
-        self, author: discord.Member, durations: dict, members: list, PageSize: int
+        self,
+        *,
+        timeout: int = 60,
+        PreviousButton: discord.ui.Button = discord.ui.Button(emoji="<"),
+        NextButton: discord.ui.Button = discord.ui.Button(emoji=">"),
+        FirstEmbedButton: discord.ui.Button = discord.ui.Button(emoji="<<"),
+        LastEmbedButton: discord.ui.Button = discord.ui.Button(emoji=">>"),
+        PageCounterStyle: discord.ButtonStyle = discord.ButtonStyle.grey,
+        InitialPage: int = 0,
+        ephemeral: bool = False,
+    ) -> None:
+        self.PreviousButton = PreviousButton
+        self.FirstEmbedButton = FirstEmbedButton
+        self.LastEmbedButton = LastEmbedButton
+        self.NextButton = NextButton
+        self.PageCounterStyle = PageCounterStyle
+        self.InitialPage = InitialPage
+        self.ephemeral = ephemeral
+
+        self.pages = None
+        self.ctx = None
+        self.message = None
+        self.current_page = None
+        self.page_counter = None
+        self.total_page_count = None
+
+        super().__init__(timeout=timeout)
+
+    async def start(
+        self,
+        ctx: discord.Interaction | commands.Context,
+        pages: list[discord.Embed]
     ):
-        super().__init__()
-        self.page = 1
-        self.author = author
-        self.durations = durations
-        self.members = members
-        self.PageSize = PageSize
-        self.TotalPages = (len(members) + PageSize - 1) // PageSize
+        if isinstance(ctx, discord.Interaction):
+            ctx = await commands.Context.from_interaction(ctx)
 
-    @discord.ui.button(label="<", style=discord.ButtonStyle.blurple, disabled=True)
-    async def previous(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        if self.page > 1:
-            self.page -= 1
-            self.next.disabled = False
-            button.disabled = self.page == 1
-            await self.update(interaction)
+        self.pages = pages
+        self.total_page_count = len(pages)
+        self.ctx = ctx
+        self.current_page = self.InitialPage
 
-    @discord.ui.button(label=">", style=discord.ButtonStyle.blurple, disabled=True)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < self.TotalPages:
-            self.page += 1
-            self.previous.disabled = False
-            button.disabled = self.page == self.TotalPages
-            await self.update(interaction)
+        self.PreviousButton.callback = self.previous_button_callback
+        self.NextButton.callback = self.next_button_callback
+        self.FirstEmbedButton.callback = self.start_button_callback  #
+        self.LastEmbedButton.callback = self.end_button_callback
 
-    async def update(self, interaction: discord.Interaction):
-        start = (self.page - 1) * self.PageSize
-        end = start + self.PageSize
-        page_members = self.members[start:end]
-
-        description = ""
-        for i, member in enumerate(page_members, start=start + 1):
-            duration = self.durations.get(member.id, 0)
-            total_hours, remainder = divmod(duration, 3600)
-            total_minutes, total_seconds = divmod(remainder, 60)
-
-            Time = (
-                f"{int(total_hours)}h " * (total_hours > 0)
-                + f"{int(total_minutes)}m " * (total_minutes > 0)
-                + f"{int(total_seconds)}s"
-            ).strip()
-
-            description += f"**{i}.** {member.mention} • {Time}\n"
-
-        embed = discord.Embed(
-            title="Shift Leaderboard",
-            color=discord.Color.dark_embed(),
-            description=description,
+        self.page_counter = SimplePaginatorPageCounter(
+            style=self.PageCounterStyle,
+            TotalPages=self.total_page_count,
+            InitialPage=self.InitialPage,
         )
-        embed.set_thumbnail(url=interaction.guild.icon)
-        embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon)
+        self.add_item(self.FirstEmbedButton)
+        self.add_item(self.PreviousButton)
+        self.add_item(self.page_counter)
+        self.add_item(self.NextButton)
+        self.add_item(self.LastEmbedButton)
 
-        self.next.disabled = self.page >= self.TotalPages
-        self.previous.disabled = self.page <= 1
-        await interaction.response.edit_message(embed=embed, view=self)
-class PunishmentPagination(discord.ui.View):
-    def __init__(self, author, moderation):
-        super().__init__()
-        self.author = author
-        self.moderation = moderation
-        self.Current = 0
-        self.UpdateButtons()
+        self.message = await ctx.send(
+            content="", embed=self.pages[self.InitialPage], view=self
+        )
 
-    def UpdateButtons(self):
-        self.previous.disabled = self.Current == 0
-        self.next.disabled = (self.Current + 1) * 10 >= len(self.moderation)
+    async def previous(self):
+        if self.current_page == 0:
+            self.current_page = self.total_page_count - 1
+        else:
+            self.current_page -= 1
 
-    async def update(self, interaction: discord.Interaction):
-        embed = interaction.message.embeds[0]
-        embed.clear_fields()
+        self.page_counter.label = f"{self.current_page + 1}/{self.total_page_count}"
+        await self.message.edit(embed=self.pages[self.current_page], view=self)
 
-        Start = self.Current * 10
-        End = Start + 10
-        for i, mod in enumerate(self.moderation[Start:End]):
-            embed.add_field(
-                name=f"`{mod.get('_id')}`",
-                value=f"> **Issuer:** <@{mod.get('author')}>\n"
-                f"> **Action:** {mod.get('action')}\n"
-                f"> **Reason:** {mod.get('reason')}\n"
-                f"> **Jump:** {mod.get('jump')}",
-                inline=False,
+    async def next(self):
+        if self.current_page == self.total_page_count - 1:
+            self.current_page = 0
+        else:
+            self.current_page += 1
+
+        self.page_counter.label = f"{self.current_page + 1}/{self.total_page_count}"
+        await self.message.edit(embed=self.pages[self.current_page], view=self)
+
+    async def next_button_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            embed = discord.Embed(
+                description=f"**{interaction.user.display_name},** this is not your panel!",
+                color=discord.Colour.brand_red(),
             )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        await self.next()
+        await interaction.response.defer()
 
-        embed.title = f"Punishments for @{self.moderation[0].get('username')}"
-        embed.set_author(
-            name=f"@{self.moderation[0].get('username')}",
-            icon_url=await RobloxThumbnail(self.moderation[0].get("UserID")),
+    async def previous_button_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            embed = discord.Embed(
+                description=f"**{interaction.user.display_name},** this is not your panel!",
+                color=discord.Colour.brand_red(),
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        await self.previous()
+        await interaction.response.defer()
+
+    async def start_button_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            embed = discord.Embed(
+                description=f"**{interaction.user.display_name},** this is not your panel!",
+                color=discord.Colour.brand_red(),
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        self.current_page = 0
+        self.page_counter.label = f"{self.current_page + 1}/{self.total_page_count}"
+        await self.message.edit(embed=self.pages[self.current_page], view=self)
+        await interaction.response.defer()
+
+    async def end_button_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            embed = discord.Embed(
+                description=f"**{interaction.user.display_name},** this is not your panel!",
+                color=discord.Colour.brand_red(),
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+        self.current_page = self.total_page_count - 1
+        self.page_counter.label = f"{self.current_page + 1}/{self.total_page_count}"
+        await self.message.edit(embed=self.pages[self.current_page], view=self)
+        await interaction.response.defer()
+
+
+class SimplePaginatorPageCounter(discord.ui.Button):
+    def __init__(self, style: discord.ButtonStyle, TotalPages, InitialPage):
+        super().__init__(
+            label=f"{InitialPage + 1}/{TotalPages}", style=style, disabled=True
         )
-        embed.set_thumbnail(url=await RobloxThumbnail(self.moderation[0].get("UserID")))
-
-        self.UpdateButtons()
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="<", style=discord.ButtonStyle.blurple)
-    async def previous(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
-        if self.Current > 0:
-            self.Current -= 1
-            await self.update(interaction)
-        else:
-            button.disabled = True
-            await interaction.response.edit_message(view=self)
-
-    @discord.ui.button(label=">", style=discord.ButtonStyle.blurple)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if (self.Current + 1) * 10 < len(self.moderation):
-            self.Current += 1
-            await self.update(interaction)
-        else:
-            button.disabled = True
-            await interaction.response.edit_message(view=self)

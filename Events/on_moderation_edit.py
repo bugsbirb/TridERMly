@@ -21,7 +21,6 @@ class on_moderate_edit(commands.Cog):
 
     @commands.Cog.listener()
     async def on_moderation_edit(self, objectid: ObjectId, voided=False):
-        print(voided)
         moderation = await moderations.find_one({"_id": objectid})
         if not moderation:
             return
@@ -46,18 +45,18 @@ class on_moderate_edit(commands.Cog):
             return
         vmsg = ""
         msg = await channel.fetch_message(message)
-        if voided == True:
+        if voided is True:
             vmsg = " (Voided)"
         await msg.edit(
             embed=discord.Embed(
                 title=f"Moderation Issued{vmsg}",
-                description = (
+                description=(
                     f"**User:** @{moderation.get('username')} (`{moderation.get('UserID')}`)\n"
                     f"**Punishment:** {moderation.get('action')}\n"
                     f"**Reason:** {moderation.get('reason')}\n"
                     f"**ID** `{moderation.get('_id')}`"
                     f"\n{'🖼️ **Proof Below**' if proof else ''}"
-                ),        
+                ),
                 timestamp=discord.utils.utcnow(),
                 color=discord.Color.green(),
             )
@@ -68,7 +67,6 @@ class on_moderate_edit(commands.Cog):
             )
             .set_image(url=proof if proof else None)
         )
-
 
 
 async def setup(client: commands.Bot) -> None:

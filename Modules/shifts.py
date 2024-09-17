@@ -7,7 +7,8 @@ from roblox import Client
 from motor.motor_asyncio import AsyncIOMotorClient
 from Utils.config import config
 from bson import ObjectId
-from Utils.paginations import ActivePagination, LeaderboardPagination
+import Utils.paginations as Paginator
+
 
 MONGO_URL = os.getenv("MONGO_URL")
 client = AsyncIOMotorClient(MONGO_URL)
@@ -24,7 +25,7 @@ class Shifts(commands.Cog):
     @commands.hybrid_group(name="shift")
     async def shift(self, ctx: commands.Context):
         pass
-    
+
     @shift.command(name="clear", description="Clear all shifts")
     async def clear(self, ctx: commands.Context):
         shift = config.get("shifts")
@@ -35,9 +36,8 @@ class Shifts(commands.Cog):
             )
             return
 
-        await shifts.delete_many({'guild': ctx.guild.id})
+        await shifts.delete_many({"guild": ctx.guild.id})
         await ctx.send(f"` ✅ ` All shifts have been cleared.", ephemeral=True)
-
 
     @shift.command(name="manage", description="Manage your shift")
     async def manage(self, ctx: commands.Context):
@@ -55,7 +55,9 @@ class Shifts(commands.Cog):
         embed.set_author(
             name=f"@{ctx.author.name}", icon_url=ctx.author.display_avatar.url
         )
-        AllShifts = await shifts.find({"user": ctx.author.id, 'guild': ctx.guild.id}).to_list(length=100)
+        AllShifts = await shifts.find(
+            {"user": ctx.author.id, "guild": ctx.guild.id}
+        ).to_list(length=100)
         if AllShifts:
             ShiftResult = await shifts.find_one(
                 {"user": ctx.author.id, "status": {"$ne": "inactive"}}
@@ -74,7 +76,9 @@ class Shifts(commands.Cog):
                     + f"{int(total_seconds)}s"
                 ).strip()
 
-                TotalShifts = await shifts.count_documents({"user": ctx.author.id, 'guild': ctx.guild.id})
+                TotalShifts = await shifts.count_documents(
+                    {"user": ctx.author.id, "guild": ctx.guild.id}
+                )
 
                 embed.add_field(
                     name="Information",
@@ -134,10 +138,12 @@ class Shifts(commands.Cog):
         view = ShiftManage(staff)
 
         embed.set_author(name=f"@{staff.name}", icon_url=staff.display_avatar.url)
-        AllShifts = await shifts.find({"user": staff.id, 'guild': ctx.guild.id}).to_list(length=100)
+        AllShifts = await shifts.find(
+            {"user": staff.id, "guild": ctx.guild.id}
+        ).to_list(length=100)
         if AllShifts:
             ShiftResult = await shifts.find_one(
-                {"user": staff.id, "status": {"$ne": "inactive"}}
+                {"user": staff.id, "guild": ctx.guild.id, "status": {"$ne": "inactive"}}
             )
             if not ShiftResult:
                 AllShiftTime = sum(
@@ -153,7 +159,9 @@ class Shifts(commands.Cog):
                     + f"{int(total_seconds)}s"
                 ).strip()
 
-                TotalShifts = await shifts.count_documents({"user": staff.id, 'guild': ctx.guild.id})
+                TotalShifts = await shifts.count_documents(
+                    {"user": staff.id, "guild": ctx.guild.id}
+                )
 
                 embed.add_field(
                     name="Information",
@@ -192,7 +200,7 @@ class Shifts(commands.Cog):
 
         await ctx.send(embed=embed, view=view, ephemeral=True)
 
-    @shift.command(name="active")
+    @shift.command(name="active", description="View all active shifts")
     async def active(self, ctx: commands.Context):
         shift = config.get("shifts")
         permissions = shift.get("permissions")
@@ -201,46 +209,57 @@ class Shifts(commands.Cog):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
+        AllShifts = await shifts.find(
+            {"guild": ctx.guild.id, "status": {"$ne": "inactive"}}
+        ).to_list(length=100)
 
-        StaffMembers = [
-            member
-            for role_id in permissions
-            for member in ctx.guild.get_role(role_id).members
-        ]
-        ActiveShifts = await shifts.find({"status": "Active", 'guild': ctx.guild.id}).to_list(length=100)
-        ActiveStaff = [
-            member
-            for shift in ActiveShifts
-            for member in StaffMembers
-            if member.id == shift.get("user")
-        ]
+        embeds = []
+        items = 0
+        embed = discord.Embed()
 
-        if ActiveStaff:
-            ActiveStaffD = {
-                member.id: await shifts.find_one(
-                    {"user": member.id, "status": "Active", 'guild': ctx.guild.id}
-                )
-                for member in ActiveStaff
-            }
-
-            description = ""
-            for MemberID in list(ActiveStaffD.keys())[:30]:
-                ShiftResult = ActiveStaffD[MemberID]
-                description += f"> **{ctx.guild.get_member(MemberID).mention}** • <t:{int(ShiftResult.get('start'))}:R>\n"
-
-            embed = discord.Embed(
-                title="Active Shifts",
-                color=discord.Color.dark_embed(),
-                description=description,
+        for i, shift in enumerate(AllShifts):
+            embed.description = (
+                (embed.description or "")
+                + f"`{i + 1}` <@{shift.get('user') }> - <t:{int(shift.get('start'))}:R>\n"
             )
-            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
-            embed.set_thumbnail(url=ctx.guild.icon)
-            view = ActivePagination(ctx.author, ActiveStaffD)
-            if (len(ActiveStaff) - 30) > 0:
-                view.next.disabled = False
-            await ctx.send(embed=embed, view=view)
-        else:
-            await ctx.send(f"` ❌ ` There are no active shifts.", ephemeral=True)
+            items += 1
+            if items % 10 == 0:
+                embed.set_author(name="All Punishments", icon_url=ctx.guild.icon.url)
+                embed.set_thumbnail(url=ctx.guild.icon)
+                embed.color = discord.Color.dark_embed()
+                embeds.append(embed)
+                embed = discord.Embed()
+                items = 0
+
+        if items > 0:
+            embeds.append(embed)
+
+        if len(embeds) == 0:
+            await ctx.send("` ❌ ` No active shifts found.", ephemeral=True)
+            return
+
+        embed.set_author(name="Active Shifts", icon_url=ctx.guild.icon.url)
+        embed.set_thumbnail(url=ctx.guild.icon)
+        embed.color = discord.Color.dark_embed()
+        PreviousButton = discord.ui.Button(label="<")
+        NextButton = discord.ui.Button(label=">")
+        FirstEmbedButton = discord.ui.Button(label="<<")
+        LastEmbedButton = discord.ui.Button(label=">>")
+
+        if len(embeds) <= 1:
+            PreviousButton.disabled = True
+            NextButton.disabled = True
+            FirstEmbedButton.disabled = True
+            LastEmbedButton.disabled = True
+        paginator = Paginator.Simple(
+            PreviousButton=PreviousButton,
+            NextButton=NextButton,
+            FirstEmbedButton=FirstEmbedButton,
+            LastEmbedButton=LastEmbedButton,
+            InitialPage=0,
+            timeout=1080,
+        )
+        await paginator.start(ctx, pages=embeds)
 
     @shift.command(name="leaderboard", description="View the leaderboard")
     async def leaderboard(self, ctx: commands.Context):
@@ -255,8 +274,8 @@ class Shifts(commands.Cog):
 
         StaffMembers = [
             member
-            for role_id in permissions
-            for member in ctx.guild.get_role(role_id).members
+            for RoleId in permissions
+            for member in ctx.guild.get_role(RoleId).members
         ]
 
         AllShifts = await shifts.find({"guild": ctx.guild.id}).to_list(length=750)
@@ -276,33 +295,66 @@ class Shifts(commands.Cog):
             reverse=True,
         )
 
+        embeds = []
+        items = 0
         description = ""
-        for i, member in enumerate(LambaStaff[:10]):
-            duration = ShiftDurations.get(member.id, 0)
-            total_hours, remainder = divmod(duration, 3600)
-            total_minutes, total_seconds = divmod(remainder, 60)
+        for i, member in enumerate(LambaStaff):
+            if member.id in ShiftDurations:
+                duration = ShiftDurations.get(member.id)
+                total_hours, remainder = divmod(duration, 3600)
+                total_minutes, total_seconds = divmod(remainder, 60)
 
-            Time = (
-                f"{int(total_hours)}h " * (total_hours > 0)
-                + f"{int(total_minutes)}m " * (total_minutes > 0)
-                + f"{int(total_seconds)}s"
-            ).strip()
+                Time = (
+                    f"{int(total_hours)}h " * (total_hours > 0)
+                    + f"{int(total_minutes)}m " * (total_minutes > 0)
+                    + f"{int(total_seconds)}s"
+                ).strip()
 
-            description += f"**{i + 1}.** {member.mention} • {Time}\n"
+                description += f"`{i + 1}` <@{member.id}> - {Time}\n"
+                items += 1
 
-        embed = discord.Embed(
-            title="Shift Leaderboard",
-            color=discord.Color.dark_embed(),
-            description=description,
+                if items % 10 == 0:
+                    embed = discord.Embed(
+                        title="Shift Leaderboard",
+                        color=discord.Color.dark_embed(),
+                        description=description,
+                    )
+                    embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
+                    embed.set_thumbnail(url=ctx.guild.icon.url)
+                    embeds.append(embed)
+                    description = ""
+                    items = 0
+
+        if description:
+            embed = discord.Embed(
+                title="Shift Leaderboard",
+                color=discord.Color.dark_embed(),
+                description=description,
+            )
+            embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+            embeds.append(embed)
+
+        if len(embeds) == 0:
+            await ctx.send(f"` ❌ ` There are no shifts to display.", ephemeral=True)
+            return
+
+        paginator = Paginator.Simple(
+            PreviousButton=discord.ui.Button(
+                emoji="<:chevronleft:1220806425140531321>"
+            ),
+            NextButton=discord.ui.Button(emoji="<:chevronright:1220806430010118175>"),
+            FirstEmbedButton=discord.ui.Button(
+                emoji="<:chevronsleft:1220806428726661130>"
+            ),
+            LastEmbedButton=discord.ui.Button(
+                emoji="<:chevronsright:1220806426583371866>"
+            ),
+            InitialPage=0,
+            timeout=60,
         )
-        embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon)
 
-        embed.set_thumbnail(url=ctx.guild.icon)
-
-        view = LeaderboardPagination(ctx.author, ShiftDurations, LambaStaff, 10)
-        if (len(LambaStaff) - 10) > 0:
-            view.next.disabled = False
-        await ctx.send(embed=embed, view=view)
+        await paginator.start(ctx, pages=embeds)
 
 
 class ShiftManage(discord.ui.View):
@@ -321,7 +373,11 @@ class ShiftManage(discord.ui.View):
                 )
                 return
         ShiftResult = await shifts.find_one(
-            {"user": author.id, "status": {"$ne": "inactive", "guild": interaction.guild.id}}
+            {
+                "user": author.id,
+                "guild": interaction.guild.id,
+                "status": {"$ne": "inactive"},
+            }
         )
         if ShiftResult:
             await interaction.response.send_message(
@@ -371,7 +427,11 @@ class ShiftManage(discord.ui.View):
                 return
 
         ShiftResult = await shifts.find_one(
-            {"user": author.id, "status": {"$ne": "inactive", "guild": interaction.guild.id}}
+            {
+                "user": author.id,
+                "guild": interaction.guild.id,
+                "status": {"$ne": "inactive"},
+            }
         )
 
         if not ShiftResult:
@@ -454,7 +514,11 @@ class ShiftManage(discord.ui.View):
                 return
 
         ShiftResult = await shifts.find_one(
-            {"user": self.author.id, "status": {"$ne": "inactive"}, 'guild': interaction.guild.id}
+            {
+                "user": self.author.id,
+                "status": {"$ne": "inactive"},
+                "guild": interaction.guild.id,
+            }
         )
         if not ShiftResult:
             await interaction.response.send_message(
@@ -518,7 +582,11 @@ class ShiftManage(discord.ui.View):
                 return
 
         ShiftResult = await shifts.find_one(
-            {"user": self.author.id, "status": {"$ne": "inactive", 'guild': interaction.guild.id}}
+            {
+                "user": self.author.id,
+                "guild": interaction.guild.id,
+                "status": {"$ne": "inactive"},
+            }
         )
         if not ShiftResult:
             await interaction.response.send_message(
@@ -540,7 +608,11 @@ class ShiftManage(discord.ui.View):
                 )
                 return
         ShiftResult = await shifts.find_one(
-            {"user": self.author.id, "status": {"$ne": "inactive", 'guild': interaction.guild.id}}
+            {
+                "user": self.author.id,
+                "guild": interaction.guild.id,
+                "status": {"$ne": "inactive"},
+            }
         )
         if not ShiftResult:
             await interaction.response.send_message(
@@ -569,7 +641,11 @@ class ShiftManage(discord.ui.View):
             )
             return
         ShiftResult = await shifts.find_one(
-            {"user": self.author.id, "status": {"$ne": "inactive"}}
+            {
+                "user": self.author.id,
+                "guild": interaction.guild.id,
+                "status": {"$ne": "inactive"},
+            }
         )
         if not ShiftResult:
             await interaction.response.send_message(

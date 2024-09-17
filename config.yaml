@@ -1,16 +1,45 @@
+
+# ----------------- CONFIG.YAML DESCRIPTIONS ----------------- (You can delete this if you want.)
+
+# LOA
+# -----------------
+#  channel: The channel where the requests get sent
+#  role: The LOA Role
+#  permissions: The role that can send requests
+
+
+# Shifts
+# -----------------
+#  channel: The channel where the requests get sent
+#  permissions: The role that can send requests
+#  online: The role that can be online
+#  break: The role that can be on break
+#  manager: The role that can manage the shifts
+
+
+# Punishments
+# -----------------
+#  channel: The channel where the requests get sent
+#  types: The types of punishments that can be given
+#  permissions: The role that can give punishments
+ 
+ 
 shifts:
- channel: # Channel ID
- permissions: [] # Role IDs
- online: # Online Role ID
- break: # Break Role ID
- manager: [] # Manager Role Ids
+ channel: 
+ permissions: [] 
+ online:
+ break: 
+ manager: [] 
  
 
 punishments:
- channel: # Channel ID
+ channel: 
  types: ['Warning', 'Kick', 'Ban']
- permissions: [] # Role Ids
+ permissions:
  
  
-
-
+loa:
+ channel:  
+ role:  
+ permissions: []
+ manager: [] 

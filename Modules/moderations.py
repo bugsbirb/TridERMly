@@ -3,13 +3,14 @@ from discord.ext import commands
 from discord import app_commands
 import os
 import time
-from Utils.paginations import PunishmentPagination
+
 from Utils.autocomplete import ActionAutocomplete
 from roblox import Client
 from motor.motor_asyncio import AsyncIOMotorClient
 from Utils.Roblox import RobloxThumbnail
 from Utils.config import config
 from bson import ObjectId
+import Utils.paginations as Paginator
 
 MONGO_URL = os.getenv("MONGO_URL")
 client = AsyncIOMotorClient(MONGO_URL)
@@ -136,7 +137,7 @@ class Moderations(commands.Cog):
             embed=embed, view=PunishmentManage(moderation.get("_id"), ctx.author)
         )
 
-    @punishment.command(description='View a user\'s punishments')
+    @punishment.command(description="View a user's punishments")
     async def view(self, ctx: commands.Context, username: str):
         punishment = config.get("punishments")
         permissions = punishment.get("permissions")
@@ -161,27 +162,123 @@ class Moderations(commands.Cog):
             title=f"Punishments for @{username}",
             color=discord.Color.dark_embed(),
         )
+        embeds = []
+        items = 0
+        embed = discord.Embed()
+        for i, mod in enumerate(moderation):
+            embed.description = (
+                (embed.description or "")
+                + f"`{i + 1}` **Action:** {mod.get('action')}\n"
+                f"> **Reason:** {mod.get('reason')}\n"
+                f"> **Issuer:** <@{mod.get('author')}>\n"
+                f"> **ID** `{mod.get('_id')}`\n"
+                f"> **Time:** <t:{int(mod.get('time'))}:R>\n"
+                f"> **Proof:** {mod.get('proof') if mod.get('proof') else 'None'}\n"
+            )
+            items += 1
+            if items % 10 == 0:
+                embed.set_author(name="Punishments", icon_url=ctx.guild.icon)
+                embed.set_thumbnail(url=ctx.guild.icon)
+                embed.color = discord.Color.dark_embed()
+                embeds.append(embed)
+                embed = discord.Embed()
+                items = 0
 
-        for i, mod in enumerate(moderation[:10]):
-            embed.add_field(
-                name=f"`{mod.get('_id')}`",
-                value=f"> **Issuer:** <@{mod.get('author')}>\n"
+        if items > 0:
+            embeds.append(embed)
+
+        if len(embeds) == 0:
+            await ctx.send("No punishments found.", ephemeral=True)
+            return
+        PreviousButton = discord.ui.Button(label="<")
+        NextButton = discord.ui.Button(label=">")
+        FirstEmbedButton = discord.ui.Button(label="<<")
+        LastEmbedButton = discord.ui.Button(label=">>")
+
+        if len(embeds) <= 1:
+            PreviousButton.disabled = True
+            NextButton.disabled = True
+            FirstEmbedButton.disabled = True
+            LastEmbedButton.disabled = True
+        paginator = Paginator.Simple(
+            PreviousButton=PreviousButton,
+            NextButton=NextButton,
+            FirstEmbedButton=FirstEmbedButton,
+            LastEmbedButton=LastEmbedButton,
+            InitialPage=0,
+            timeout=1080,
+        )
+        await paginator.start(ctx, pages=embeds)
+
+    @punishment.command(description="View all punishments")
+    async def all(self, ctx: commands.Context):
+        punishment = config.get("punishments")
+        permissions = punishment.get("permissions")
+        if not any(role.id in permissions for role in ctx.author.roles):
+            await ctx.send(
+                f"` ❌ ` You don't have permission to run this command.", ephemeral=True
+            )
+            return
+        moderation = await moderations.find({"guild": ctx.guild.id}).to_list(length=750)
+        if not moderation:
+            await ctx.send(f"` ❌ ` No punishments have been issued.")
+            return
+        embed = discord.Embed(
+            title=f"",
+            color=discord.Color.dark_embed(),
+        )
+        embeds = []
+        items = 0
+        embed = discord.Embed()
+        embed.set_author(name="Punishments", icon_url=ctx.guild.icon.url)
+        embed.set_thumbnail(url=ctx.guild.icon)
+        embed.color = discord.Color.dark_embed()
+        for i, mod in enumerate(moderation):
+            embed.description = (
+                (embed.description or "")
+                + f"`{i + 1}` **User:** @{mod.get('username')} (`{mod.get('UserID')}`)\n"
                 f"> **Action:** {mod.get('action')}\n"
                 f"> **Reason:** {mod.get('reason')}\n"
-                f"> **Jump:** {mod.get('jump')}",
-                inline=False,
+                f"> **Issuer:** <@{mod.get('author')}>\n"
+                f"> **Time:** <t:{int(mod.get('time'))}:R>\n"
+                f"> **ID** `{mod.get('_id')}`\n"
+                f"> **Proof:** {mod.get('proof') if mod.get('proof') else 'None'}\n"
             )
+            items += 1
+            if items % 10 == 0:
+                embed.set_author(name="Punishments", icon_url=ctx.guild.icon.url)
+                embed.set_thumbnail(url=ctx.guild.icon)
+                embed.color = discord.Color.dark_embed()
+                embeds.append(embed)
+                embed = discord.Embed()
+                items = 0
 
-        embed.set_author(
-            name=f"@{username}",
-            icon_url=await RobloxThumbnail(user.id),
+        if items > 0:
+            embeds.append(embed)
+
+        if len(embeds) == 0:
+            await ctx.send("No punishments found.", ephemeral=True)
+            return
+
+        PreviousButton = discord.ui.Button(label="<")
+        NextButton = discord.ui.Button(label=">")
+        FirstEmbedButton = discord.ui.Button(label="<<")
+        LastEmbedButton = discord.ui.Button(label=">>")
+
+        if len(embeds) <= 1:
+            PreviousButton.disabled = True
+            NextButton.disabled = True
+            FirstEmbedButton.disabled = True
+            LastEmbedButton.disabled = True
+        paginator = Paginator.Simple(
+            PreviousButton=PreviousButton,
+            NextButton=NextButton,
+            FirstEmbedButton=FirstEmbedButton,
+            LastEmbedButton=LastEmbedButton,
+            InitialPage=0,
+            timeout=1080,
         )
-        embed.set_thumbnail(url=await RobloxThumbnail(user.id))
-
-        view = PunishmentPagination(ctx.author, moderation)
-        view.next.disabled = len(moderation) <= 10
-
-        await ctx.send(embed=embed, view=view)
+        await paginator.start(ctx, pages=embeds)
 
 
 class PunishmentManage(discord.ui.View):
