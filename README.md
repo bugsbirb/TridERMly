@@ -19,7 +19,6 @@ MONGO_URL =
 ### config.yaml
 > Fill it out so the bot actually works
 ```yaml
-
 # ----------------- CONFIG.YAML DESCRIPTIONS ----------------- (You can delete this if you want.)
 
 # LOA
@@ -32,17 +31,17 @@ MONGO_URL =
 # Shifts
 # -----------------
 #  channel: The channel where the requests get sent
-#  permissions: The role that can send requests
+#  permissions: The roles that can send requests
 #  online: The role that can be online
 #  break: The role that can be on break
-#  manager: The role that can manage the shifts
+#  manager: The roles that can manage the shifts
 
 
 # Punishments
 # -----------------
 #  channel: The channel where the requests get sent
 #  types: The types of punishments that can be given
-#  permissions: The role that can give punishments
+#  permissions: The roles that can give punishments
  
  
 shifts:
@@ -56,7 +55,7 @@ shifts:
 punishments:
  channel: 
  types: ['Warning', 'Kick', 'Ban']
- permissions:
+ permissions: []
  
  
 loa:
@@ -64,7 +63,6 @@ loa:
  role:  
  permissions: []
  manager: [] 
- 
 ```
 
 ### 🙌 Contributions
