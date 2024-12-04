@@ -101,7 +101,7 @@ class Leaves(commands.Cog):
         print("[INFO] Checking for abscenses...")
         loa = config.get("loa")
         guilds = self.client.guilds
-        for guild in guilds:
+        for guild in guilds: # future me: do not know why i did this and i cba to fix it
             channel = guild.get_channel(loa.get("channel"))
             if not channel:
                 continue
