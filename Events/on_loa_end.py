@@ -1,15 +1,7 @@
 import discord
 from discord.ext import commands
-import os
 from Utils.config import config
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient
-
-
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-abscenses = db["Abscenses"]
 
 
 class On_loa_end(commands.Cog):
@@ -18,7 +10,7 @@ class On_loa_end(commands.Cog):
 
     @commands.Cog.listener()
     async def on_loa_end(self, objectid: ObjectId):
-        result = await abscenses.find_one({"_id": objectid})
+        result = await self.client.abscenses.find_one({"_id": objectid})
         if not result:
             return
         guild = self.client.get_guild(result.get("guild"))
@@ -36,7 +28,7 @@ class On_loa_end(commands.Cog):
         embed.color = discord.Color.orange()
         embed.title = "Leave Ended"
         await msg.reply(embed=embed)
-        await abscenses.update_one(
+        await self.client.abscenses.update_one(
             {"_id": objectid},
             {"$set": {"status": "ended"}},
         )

@@ -1,21 +1,13 @@
 import discord
 from discord.ext import commands
-import os
 import time
 from datetime import timedelta
-from roblox import Client
-from motor.motor_asyncio import AsyncIOMotorClient
 from Utils.config import config
 from bson import ObjectId
 import Utils.paginations as Paginator
 
 
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-shifts = db["Shifts"]
 
-Roblox = Client()
 
 
 class Shifts(commands.Cog):
@@ -36,7 +28,7 @@ class Shifts(commands.Cog):
             )
             return
 
-        await shifts.delete_many({"guild": ctx.guild.id})
+        await self.client.shifts.delete_many({"guild": ctx.guild.id})
         await ctx.send(f"` ✅ ` All shifts have been cleared.", ephemeral=True)
 
     @shift.command(name="manage", description="Manage your shift")
@@ -55,11 +47,11 @@ class Shifts(commands.Cog):
         embed.set_author(
             name=f"@{ctx.author.name}", icon_url=ctx.author.display_avatar.url
         )
-        AllShifts = await shifts.find(
+        AllShifts = await self.client.shifts.find(
             {"user": ctx.author.id, "guild": ctx.guild.id}
         ).to_list(length=100)
         if AllShifts:
-            ShiftResult = await shifts.find_one(
+            ShiftResult = await self.client.shifts.find_one(
                 {"user": ctx.author.id, "status": {"$ne": "inactive"}}
             )
             if not ShiftResult:
@@ -76,7 +68,7 @@ class Shifts(commands.Cog):
                     + f"{int(total_seconds)}s"
                 ).strip()
 
-                TotalShifts = await shifts.count_documents(
+                TotalShifts = await self.client.shifts.count_documents(
                     {"user": ctx.author.id, "guild": ctx.guild.id}
                 )
 
@@ -138,11 +130,11 @@ class Shifts(commands.Cog):
         view = ShiftManage(staff)
 
         embed.set_author(name=f"@{staff.name}", icon_url=staff.display_avatar.url)
-        AllShifts = await shifts.find(
+        AllShifts = await self.client.shifts.find(
             {"user": staff.id, "guild": ctx.guild.id}
         ).to_list(length=100)
         if AllShifts:
-            ShiftResult = await shifts.find_one(
+            ShiftResult = await self.client.shifts.find_one(
                 {"user": staff.id, "guild": ctx.guild.id, "status": {"$ne": "inactive"}}
             )
             if not ShiftResult:
@@ -159,7 +151,7 @@ class Shifts(commands.Cog):
                     + f"{int(total_seconds)}s"
                 ).strip()
 
-                TotalShifts = await shifts.count_documents(
+                TotalShifts = await self.client.shifts.count_documents(
                     {"user": staff.id, "guild": ctx.guild.id}
                 )
 
@@ -209,7 +201,7 @@ class Shifts(commands.Cog):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        AllShifts = await shifts.find(
+        AllShifts = await self.client.shifts.find(
             {"guild": ctx.guild.id, "status": {"$ne": "inactive"}}
         ).to_list(length=100)
 
@@ -278,7 +270,7 @@ class Shifts(commands.Cog):
             for member in ctx.guild.get_role(RoleId).members
         ]
 
-        AllShifts = await shifts.find({"guild": ctx.guild.id}).to_list(length=750)
+        AllShifts = await self.client.shifts.find({"guild": ctx.guild.id}).to_list(length=750)
         if not AllShifts:
             await ctx.send(f"` ❌ ` There are no shifts to display.", ephemeral=True)
             return
@@ -372,7 +364,7 @@ class ShiftManage(discord.ui.View):
                     "` ❌ ` This isn't your panel.", ephemeral=True
                 )
                 return
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": author.id,
                 "guild": interaction.guild.id,
@@ -384,7 +376,7 @@ class ShiftManage(discord.ui.View):
                 "` ❌ ` You already have an active shift.", ephemeral=True
             )
             return
-        shift = await shifts.insert_one(
+        shift = await interaction.client.shifts.insert_one(
             {
                 "user": self.author.id,
                 "start": time.time(),
@@ -426,7 +418,7 @@ class ShiftManage(discord.ui.View):
                 )
                 return
 
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": author.id,
                 "guild": interaction.guild.id,
@@ -445,7 +437,7 @@ class ShiftManage(discord.ui.View):
         if ShiftResult.get("status") == "Break":
             BreakDuration = CurrentTime - ShiftResult.get("break")
             UpdatedTime = ShiftResult.get("start") + BreakDuration
-            await shifts.update_one(
+            await interaction.client.shifts.update_one(
                 {"_id": ShiftResult.get("_id")},
                 {
                     "$set": {"status": "Active", "start": UpdatedTime},
@@ -476,7 +468,7 @@ class ShiftManage(discord.ui.View):
                 pass
             WorkedTime = CurrentTime - ShiftResult.get("start")
             TotalDuration = ShiftResult.get("duration", 0) + WorkedTime
-            await shifts.update_one(
+            await interaction.client.shifts.update_one(
                 {"_id": ShiftResult.get("_id")},
                 {
                     "$set": {
@@ -513,7 +505,7 @@ class ShiftManage(discord.ui.View):
                 )
                 return
 
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": self.author.id,
                 "status": {"$ne": "inactive"},
@@ -534,7 +526,7 @@ class ShiftManage(discord.ui.View):
             WorkedTime = CurrentTime - ShiftResult.get("start")
             TotalDuration = ShiftResult.get("duration", 0) + WorkedTime
 
-        await shifts.update_one(
+        await interaction.client.shifts.update_one(
             {"_id": ShiftResult.get("_id")},
             {
                 "$set": {
@@ -581,7 +573,7 @@ class ShiftManage(discord.ui.View):
                 )
                 return
 
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": self.author.id,
                 "guild": interaction.guild.id,
@@ -607,7 +599,7 @@ class ShiftManage(discord.ui.View):
                     "` ❌ ` This isn't your panel.", ephemeral=True
                 )
                 return
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": self.author.id,
                 "guild": interaction.guild.id,
@@ -640,7 +632,7 @@ class ShiftManage(discord.ui.View):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        ShiftResult = await shifts.find_one(
+        ShiftResult = await interaction.client.shifts.find_one(
             {
                 "user": self.author.id,
                 "guild": interaction.guild.id,
@@ -652,7 +644,7 @@ class ShiftManage(discord.ui.View):
                 "` ❌ ` You don't have an active shift.", ephemeral=True
             )
             return
-        await shifts.delete_one(
+        await interaction.client.shifts.delete_one(
             {"_id": ShiftResult.get("_id")},
         )
         await interaction.response.send_message(
@@ -693,13 +685,13 @@ class RemoveTime(discord.ui.Modal):
                 "` ❌ ` Please enter a positive number.", ephemeral=True
             )
             return
-        ShiftResult = await shifts.find_one({"_id": self.shift})
+        ShiftResult = await interaction.client.shifts.find_one({"_id": self.shift})
         if not ShiftResult:
             await interaction.response.send_message(
                 "` ❌ ` This shift doesn't exist.", ephemeral=True
             )
             return
-        await shifts.update_one(
+        await interaction.client.shifts.update_one(
             {"_id": self.shift},
             {
                 "$inc": {"duration": -time * 60},
@@ -747,13 +739,13 @@ class AddTime(discord.ui.Modal):
                 "` ❌ ` Please enter a positive number.", ephemeral=True
             )
             return
-        ShiftResult = await shifts.find_one({"_id": self.shift})
+        ShiftResult = await interaction.client.shifts.find_one({"_id": self.shift})
         if not ShiftResult:
             await interaction.response.send_message(
                 "` ❌ ` This shift doesn't exist.", ephemeral=True
             )
             return
-        await shifts.update_one(
+        await interaction.client.shifts.update_one(
             {"_id": self.shift},
             {
                 "$inc": {"duration": time * 60},

@@ -18,7 +18,7 @@ class on_shift_Start(commands.Cog):
 
     @commands.Cog.listener()
     async def on_shift_start(self, objectid: ObjectId):
-        shift = await shifts.find_one({"_id": objectid})
+        shift = await self.client.shifts.find_one({"_id": objectid})
         if not shift:
             return
         guild = self.client.get_guild(int(shift.get("guild")))

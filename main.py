@@ -8,17 +8,28 @@ from dotenv import load_dotenv
 import os
 import time
 import platform
+from motor.motor_asyncio import AsyncIOMotorClient
+from roblox import Client
+
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 PREFIX = os.getenv("PREFIX")
 
+MONGO_URL = os.getenv("MONGO_URL")
+client = AsyncIOMotorClient(MONGO_URL)
 
-class client(commands.Bot):
+
+class Client(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
-
+        # --- DB
+        self.db = client["TriMelERM"]
+        self.shifts = self.db["Shifts"]
+        self.moderations = self.db["Moderations"]
+        self.abscenses = self.db["Abscenses"]
+        # ---
         super().__init__(
             command_prefix=commands.when_mentioned_or(PREFIX), intents=intents
         )
@@ -33,7 +44,7 @@ class client(commands.Bot):
             "Events.on_shift_resume",
             "Modules.shifts",
             "Modules.absenses",
-            "Events.on_loa_end"
+            "Events.on_loa_end",
         ]
 
     async def load_jishaku(self):
@@ -58,5 +69,5 @@ class client(commands.Bot):
             print(f"{ext} loaded")
 
 
-Client = client()
-Client.run(TOKEN)
+c = Client()
+c.run(TOKEN)

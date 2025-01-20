@@ -1,23 +1,16 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import os
 import time
 
-from Utils.autocomplete import ActionAutocomplete
-from roblox import Client
-from motor.motor_asyncio import AsyncIOMotorClient
+from Utils.autocomplete import ActionAutocomplete, UserAutoComplete
 from Utils.Roblox import RobloxThumbnail
 from Utils.config import config
 from bson import ObjectId
 import Utils.paginations as Paginator
+from roblox import Client
 
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-moderations = db["Moderations"]
-
-Roblox = Client()
+roblox = Client()
 
 
 class Moderations(commands.Cog):
@@ -30,6 +23,7 @@ class Moderations(commands.Cog):
 
     @punishment.command(description="Moderate a roblox user")
     @app_commands.autocomplete(action=ActionAutocomplete)
+    @app_commands.autocomplete(username=UserAutoComplete)
     @app_commands.describe(
         username="The Roblox username of the user to moderate",
         action="The action to take against the user",
@@ -62,11 +56,11 @@ class Moderations(commands.Cog):
                 content=f"` ❌ `  oi I can't send messages in the infraction channel!!",
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-        user = await Roblox.get_user_by_username(username)
+        user = await roblox.get_user_by_username(username)
         if not user:
             await ctx.send(f"` ❌ ` @**{username}** could not be found.")
             return
-        moderation = await moderations.insert_one(
+        moderation = await self.client.moderations.insert_one(
             {
                 "username": username,
                 "action": action,
@@ -75,6 +69,7 @@ class Moderations(commands.Cog):
                 "author": ctx.author.id,
                 "time": time.time(),
                 "guild": ctx.guild.id,
+                "proof": proof.url if proof else None,
             }
         )
         if not moderation.inserted_id:
@@ -111,7 +106,7 @@ class Moderations(commands.Cog):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        moderation = await moderations.find_one({"_id": ObjectId(id)})
+        moderation = await self.client.moderations.find_one({"_id": ObjectId(id)})
         if not moderation:
             await ctx.send(f"` ❌ ` I couldn't find the specified punishment id.")
             return
@@ -148,12 +143,14 @@ class Moderations(commands.Cog):
             )
             return
 
-        user = await Roblox.get_user_by_username(username)
+        user = await roblox.get_user_by_username(username)
         if not user:
             await ctx.send(f"` ❌ ` @**{username}** could not be found.")
             return
 
-        moderation = await moderations.find({"UserID": user.id}).to_list(length=750)
+        moderation = await self.client.moderations.find({"UserID": user.id}).to_list(
+            length=750
+        )
         if not moderation:
             await ctx.send(f"` ❌ ` @**{username}** has no punishments.")
             return
@@ -219,7 +216,9 @@ class Moderations(commands.Cog):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        moderation = await moderations.find({"guild": ctx.guild.id}).to_list(length=750)
+        moderation = await self.client.moderations.find(
+            {"guild": ctx.guild.id}
+        ).to_list(length=750)
         if not moderation:
             await ctx.send(f"` ❌ ` No punishments have been issued.")
             return
@@ -294,7 +293,7 @@ class PunishmentManage(discord.ui.View):
                 "` ❌ ` This isn't your panel.", ephemeral=True
             )
             return
-        moderation = await moderations.find_one({"_id": ObjectId(self.id)})
+        moderation = await self.client.moderations.find_one({"_id": ObjectId(self.id)})
         if not moderation:
             await interaction.response.send_message(
                 "` ❌ ` I couldn't find the specified punishment id.", ephemeral=True
@@ -304,7 +303,7 @@ class PunishmentManage(discord.ui.View):
             "` ✅ ` Successfully voided the punishment.", embed=None, view=None
         )
         interaction.client.dispatch("moderation_edit", self.id, voided=True)
-        await moderations.delete_one({"_id": self.id})
+        await self.client.moderations.delete_one({"_id": self.id})
 
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.blurple)
     async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -332,13 +331,13 @@ class EditModal(discord.ui.Modal, title="Edit Punishment"):
         self.add_item(self.proof)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        moderation = await moderations.find_one({"_id": ObjectId(self.id)})
+        moderation = await self.client.moderations.find_one({"_id": ObjectId(self.id)})
         if not moderation:
             await interaction.response.send_message(
                 "` ❌ ` I* couldn't find the specified punishment id.", ephemeral=True
             )
             return
-        await moderations.update_one(
+        await self.client.moderations.update_one(
             {"_id": self.id},
             {
                 "$set": {

@@ -1,27 +1,18 @@
 import discord
 from discord.ext import commands
 from roblox import Client, UserNotFound
-import os
 from Utils.config import config
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient
 from Utils.Roblox import RobloxThumbnail
 
-
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-moderations = db["Moderations"]
-Roblox = Client()
-
-
+roblox = Client()
 class on_moderate_edit(commands.Cog):
     def __init__(self, client: discord.Client):
         self.client = client
 
     @commands.Cog.listener()
     async def on_moderation_edit(self, objectid: ObjectId, voided=False):
-        moderation = await moderations.find_one({"_id": objectid})
+        moderation = await self.client.moderations.find_one({"_id": objectid})
         if not moderation:
             return
         guild = self.client.get_guild(int(moderation.get("guild")))
@@ -34,7 +25,7 @@ class on_moderate_edit(commands.Cog):
         if not author:
             return
         try:
-            user = await Roblox.get_user_by_username(moderation.get("username"))
+            user = await roblox.get_user_by_username(moderation.get("username"))
         except UserNotFound:
             return
         if not user:

@@ -1,22 +1,11 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-import os
-from datetime import timezone
-from roblox import Client
-from motor.motor_asyncio import AsyncIOMotorClient
 from Utils.config import config
 from bson import ObjectId
 from Utils.dates import strtotime
 from datetime import timedelta, datetime
 import pytz
-
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-abscenses = db["Abscenses"]
-
-Roblox = Client()
 
 
 class Leaves(commands.Cog):
@@ -37,7 +26,7 @@ class Leaves(commands.Cog):
             )
             return
         guild = ctx.guild
-        AbcensesResult = await abscenses.find(
+        AbcensesResult = await self.client.abscenses.find(
             {"guild": guild.id, "status": {"$ne": "ended"}}
         ).to_list(length=None)
         if not AbcensesResult:
@@ -75,7 +64,7 @@ class Leaves(commands.Cog):
         if not member:
             await ctx.send(f"` ❌ ` Please specify a member.", ephemeral=True)
             return
-        Result = await abscenses.find_one(
+        Result = await self.client.abscenses.find_one(
             {
                 "user": member.id,
                 "status": "accepted",
@@ -100,8 +89,14 @@ class Leaves(commands.Cog):
     async def CheckAbscenses(self):
         print("[INFO] Checking for abscenses...")
         loa = config.get("loa")
-        guilds = self.client.guilds
-        for guild in guilds: # future me: do not know why i did this and i cba to fix it
+        AbcensesResult = await self.client.abscenses.find({}).to_list(length=None)
+        if not AbcensesResult:
+            print("[INFO] No abscenses found")
+            return
+        for abcenses in AbcensesResult:
+            guild = self.client.get_guild(abcenses.get("guild"))
+            if not guild:
+                continue
             channel = guild.get_channel(loa.get("channel"))
             if not channel:
                 continue
@@ -110,12 +105,7 @@ class Leaves(commands.Cog):
             ).send_messages:
                 print("[ERROR] I can't send messages in the LOA Channel")
                 continue
-            AbcensesResult = await abscenses.find({"guild": guild.id}).to_list(
-                length=None
-            )
-            if not AbcensesResult:
-                print("[INFO] No abscenses found")
-                continue
+
             for abcenses in AbcensesResult:
                 if not abcenses.get("status") == "accepted":
                     continue
@@ -126,7 +116,7 @@ class Leaves(commands.Cog):
                         continue
                     if abcenses.get("status", None) == "accepted":
                         if abcenses.get("end", None) == None:
-                            await abscenses.update_one(
+                            await self.client.abscenses.update_one(
                                 {"_id": abcenses.get("_id")},
                                 {"$set": {"end": datetime.now()}},
                             )
@@ -150,7 +140,9 @@ class Leaves(commands.Cog):
             )
             return
         date = strtotime(duration)
-        LOA = await abscenses.find_one({"user": ctx.author.id, "guild": ctx.guild.id})
+        LOA = await self.client.abscenses.find_one(
+            {"user": ctx.author.id, "guild": ctx.guild.id}
+        )
         if LOA:
             if LOA.get("status") == "pending":
                 return await ctx.send(
@@ -170,7 +162,7 @@ class Leaves(commands.Cog):
                 f"` ❌ ` I don't have permission to send messages in this channel.",
                 ephemeral=True,
             )
-        logged = await abscenses.insert_one(
+        logged = await self.client.abscenses.insert_one(
             {
                 "user": ctx.author.id,
                 "guild": ctx.guild.id,
@@ -196,7 +188,7 @@ class Leaves(commands.Cog):
 
         if not logged.inserted_id:
             return await ctx.send(f"` ❌ ` Something went wrong.")
-        await abscenses.update_one(
+        await self.client.abscenses.update_one(
             {"_id": ObjectId(logged.inserted_id)},
             {"$set": {"msg": msg.id}},
         )
@@ -224,7 +216,7 @@ class AbcenseApproval(discord.ui.View):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        result = await abscenses.find_one({"msg": interaction.message.id})
+        result = await interaction.client.abscenses.find_one({"msg": interaction.message.id})
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
         embed.title = "Leave Accepted"
@@ -233,7 +225,7 @@ class AbcenseApproval(discord.ui.View):
             icon_url=interaction.user.display_avatar,
         )
         await interaction.edit_original_response(embed=embed, view=None)
-        await abscenses.update_one(
+        await interaction.client.abscenses.update_one(
             {"_id": ObjectId(result.get("_id"))},
             {"$set": {"status": "accepted"}},
         )
@@ -263,7 +255,7 @@ class AbcenseApproval(discord.ui.View):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        result = await abscenses.find_one({"msg": interaction.message.id})
+        result = await interaction.client.abscenses.find_one({"msg": interaction.message.id})
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.red()
         embed.title = "Leave Denied"
@@ -273,7 +265,7 @@ class AbcenseApproval(discord.ui.View):
         )
 
         await interaction.edit_original_response(embed=embed)
-        await abscenses.delete_one(
+        await interaction.client.abscenses.delete_one(
             {"_id": ObjectId(result.get("_id"))},
         )
         try:
@@ -310,7 +302,7 @@ class LoaManage(discord.ui.View):
                 f"` ❌ ` You don't have permission to run this command.", ephemeral=True
             )
             return
-        result = await abscenses.find_one(
+        result = await interaction.client.abscenses.find_one(
             {"_id": ObjectId(self.id), "status": "accepted"}
         )
         if not result:
@@ -318,7 +310,7 @@ class LoaManage(discord.ui.View):
                 f"` ❌ ` I couldn't find the specified leave request.", ephemeral=True
             )
             return
-        await abscenses.update_one(
+        await interaction.client.abscenses.update_one(
             {"_id": ObjectId(result.get("_id"))},
             {"$set": {"end": datetime.now()}},
         )
@@ -396,7 +388,7 @@ class ExtendTime(discord.ui.Modal):
             )
             return
 
-        result = await abscenses.find_one({"_id": ObjectId(self.id)})
+        result = await interaction.client.abscenses.find_one({"_id": ObjectId(self.id)})
         if not result:
             await interaction.response.send_message(
                 f"` ❌ ` I couldn't find the specified leave request.", ephemeral=True
@@ -417,7 +409,7 @@ class ExtendTime(discord.ui.Modal):
             )
             return
 
-        await abscenses.update_one(
+        await interaction.client.abscenses.update_one(
             {"_id": ObjectId(result.get("_id"))},
             {"$set": {"date": newdate}},
         )
@@ -462,7 +454,7 @@ class ExtractTime(discord.ui.Modal):
             )
             return
 
-        result = await abscenses.find_one({"_id": ObjectId(self.id)})
+        result = await self.client.abscenses.find_one({"_id": ObjectId(self.id)})
         if not result:
             await interaction.response.send_message(
                 f"` ❌ ` I couldn't find the specified leave request.", ephemeral=True
@@ -483,7 +475,7 @@ class ExtractTime(discord.ui.Modal):
             )
             return
 
-        await abscenses.update_one(
+        await self.client.abscenses.update_one(
             {"_id": ObjectId(result.get("_id"))},
             {"$set": {"date": newdate}},
         )

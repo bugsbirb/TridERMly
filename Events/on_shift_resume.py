@@ -1,15 +1,7 @@
 import discord
 from discord.ext import commands
-import os
 from Utils.config import config
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient
-
-
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["TriMelERM"]
-shifts = db["Shifts"]
 
 
 class On_shift_resume(commands.Cog):
@@ -18,7 +10,7 @@ class On_shift_resume(commands.Cog):
 
     @commands.Cog.listener()
     async def on_shift_resume(self, objectid: ObjectId):
-        shift = await shifts.find_one({"_id": objectid})
+        shift = await self.client.shifts.find_one({"_id": objectid})
         if not shift:
             return
         guild = self.client.get_guild(int(shift.get("guild")))
