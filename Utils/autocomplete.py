@@ -24,7 +24,12 @@ async def UserAutoComplete(interaction: discord.Interaction, current: str):
         ) as response:
             if response.status == 200:
                 data = await response.json()
-                contents = data.get("searchResults", [])[0].get("contents", [])
+                contents = (
+                    data.get("searchResults", [])[0].get("contents", [])
+                    if data.get('"searchResults"')
+                    else []
+                )
+
                 return [
                     app_commands.Choice(
                         name=content.get("username"), value=content.get("username")
