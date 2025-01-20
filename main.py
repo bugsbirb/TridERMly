@@ -16,7 +16,9 @@ PREFIX = os.getenv("PREFIX")
 
 class client(commands.Bot):
     def __init__(self):
-        intents = discord.Intents.all()
+        intents = discord.Intents.default()
+        intents.members = True
+
         super().__init__(
             command_prefix=commands.when_mentioned_or(PREFIX), intents=intents
         )
